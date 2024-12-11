@@ -1,0 +1,204 @@
+#!/bin/bash
+# xrandr, xdotool, xwininfo
+# add more parameters as needed .. maybe displaynames and dims from xrandr
+
+
+do_verbose(){
+    echo "not yet implemented"
+}
+get_cursorBrief(){
+	cursorBrief=$(xdotool getmouselocation | sed 's|[a-z]||g' | sed 's|:||g')
+    echo $cursorBrief
+}
+get_cursorVerbose(){
+	cursorVerbose=$(xdotool getmouselocation)
+    echo $cursorVerbose
+}
+get_mouseX(){
+    cursorX=$(get_cursorBrief | cut -d ' ' -f 1)
+	#cursorX=$(get_cursorBrief | sed 's| .*||g') # remove everything after first space
+	#cursorX=$(get_cursorBrief | sed 's|\s.*$||') # remove everything after first space
+    echo $cursorX 
+}
+get_mouseY(){
+    cursorY=$(get_cursorBrief | cut -d ' ' -f 2)
+    echo $cursorY
+}
+get_windowId(){
+    windowId=$(get_cursorBrief | cut -d ' ' -f 4)
+    echo $windowId
+}
+get_numberOfDisplays(){
+    numberOfDisplays=$(xrandr -q | grep -i " connected " | wc -l)
+    echo $numberOfDisplays
+}
+get_displayDetails(){
+
+    displayDetails=$(xrandr -q | grep -i " connected ")
+    dLdims=$(get_displayDimensionsLeft)
+    dRdims=$(get_displayDimensionsRight)
+    # https://unix.stackexchange.com/questions/9784/how-can-i-read-line-by-line-from-a-variable-in-bash
+    # while read -r l; do echo -- $l; done <<< "$(echo $displayDetails | sed  's|[0-9]*mm x [0-9]*mm|\n|g')"
+    while read -r line
+    do 
+        #echo $line
+        if echo "$line" | grep -q "$dLdims"
+        then 
+            dL=$(echo $line | grep "$dLdims")
+            #echo L: $dL
+        fi
+        if echo "$line" | grep -q "$dRdims"
+        then 
+            dR=$(echo $line | grep "$dRdims")
+            #echo R: $dR
+        fi
+    done <<< "$(echo $displayDetails | sed  's|[0-9]*mm x [0-9]*mm|\n|g')"
+    echo "LEFT:  " $dL
+    echo "RIGHT: " $dR
+    #echo "$displayDetails"
+}
+get_displayDimensions(){
+    #dims=$(get_displayDetails | grep -o "[0-9]\+x[0-9]\+" | tr ' ' 'x')
+    dims=$(get_displayDetails | grep -o "[0-9]\+x[0-9]\+")
+    echo $dims
+}
+get_displayDimensionsLeft(){
+    dL=$(xrandr | grep -w connected | sed -n '/[0-9]*+0+/p')
+    dims=$(echo $dL | grep -o "[0-9]\+x[0-9]\+")
+    echo $dims
+}
+get_displayDimensionsRight(){
+    dR=$(xrandr | grep -w connected | sed -n '/x[0-9]*+[1-9][0-9]*+/p')
+    dims=$(echo $dR | grep -o "[0-9]\+x[0-9]\+")
+    echo $dims
+}
+
+
+get_widthTotal(){
+    #echo $(get_displayDimensions)
+    dims=$(get_displayDimensions | tr ' ' 'x')
+    d1Width=$(echo "$dims" | cut -d 'x' -f 1)
+    d2Width=$(echo "$dims" | cut -d 'x' -f 3)
+    widthTotal=$(expr $d1Width + $d2Width)
+    echo $widthTotal
+}
+get_zeroPosition(){
+    mouseX=$(get_mouseX)
+    mouseY=$(get_mouseY)
+    numDisplays=$(get_numberOfDisplays)
+    zeroPositionX=0
+    # assumes maximum two displays
+    comparePositionX=$(get_displayDimensions | cut -d 'x' -f 1)
+
+    if (( $numDisplays > 1 && $numDisplays < 3)) 
+    then
+        if (( $mouseX > $comparePositionX ))
+        then
+            zeroPositionX=$(get_displayDimensions | cut -d 'x' -f 1)
+            zeroPositionX=$(expr $zeroPositionX + 5)
+        else
+            #zeroPositionX=0
+            zeroPositionX=$(expr 0 + 5)
+        fi
+    fi
+
+    echo $zeroPositionX
+
+    #for d in $(get_displayDimensions)
+    #do
+        #xWidth=$(echo $d | cut -d 'x' -f 1)
+        #if (( $mouseX >= $d && $mouseX <= ))
+            ##zeroPositionX=
+        #fi
+    #done
+
+}
+
+get_all(){
+    echo
+    printf " mouse cursor X position: \n\t%s \n" $(get_mouseX) 
+    printf " mouse cursor Y position: \n\t%s \n" $(get_mouseY)
+    printf " window id: \n\t%s \n" $(get_windowId)
+    printf " number of connected displays: \n\t%s \n" $(get_numberOfDisplays)
+    #printf "\tdisplay details: \n%s \n" "$(get_displayDetails)"
+    
+    SAVEIFS=$IFS   # Save current IFS
+    IFS=$'\n'      # Change IFS to new line
+    displays=$(get_displayDetails)
+    #displays=($get_displayDetails) # split to array $displays
+    displays=($displays) # split to array $displays
+    #echo ---$displays
+    
+    printf " display details: \n" 
+    for (( i=0; i<${#displays[@]}; i++ ))
+    do
+        printf "d_$i: %s\n"  ${displays[$i]}
+        #line=$(echo ${displays[$i]} | fold -w 60 -s)
+        #printf "\td_$i: %s\n"  $line | fold -w 60 -s
+    done
+    IFS=$SAVEIFS   # Restore IFS
+    echo
+}
+
+#echo $numDisplays
+#echo $cursorX
+#echo $cursorY
+
+do_usage(){
+    me=$(basename "$0")
+    echo
+    echo " $me [ -a | -x | -y | -m | -n | -l | -r | -i | -t | -d | -z ]"
+    echo 
+    echo " -a   show all"
+    echo " -x   current x position of mouse cursor"
+    echo " -y   current y position of mouse cursor"
+    echo " -m   display details"
+    echo " -n   number of displays connected"
+    echo " -l   dimensions of left display"
+    echo " -r   dimensions of right display"
+    echo " -i   id of current window \(ie window under mouse cursor\)"
+    echo " -t   sum total width of all displays"
+    echo " -d   display dimensions NNNNxNNN NNNNxNNN ...."
+    echo " -z   zero position of display of current mouse position"
+    echo
+    exit 1
+}
+
+if [ $# -eq 0 ];
+then
+    do_usage
+    exit 0
+fi
+
+#while getopts ":axymnitdz" opt; do
+while getopts ":axymndlriwz" opt; do
+    case ${opt} in
+        a) get_all
+            ;;
+        x) get_mouseX
+            ;;
+        y) get_mouseY
+            ;;
+        m) get_displayDetails
+            ;;
+        n) get_numberOfDisplays
+            ;;
+        d) get_displayDimensions
+            ;;
+        l) get_displayDimensionsLeft
+            ;;
+        r) get_displayDimensionsRight
+            ;;
+        i) get_windowId 
+            ;;
+        w) get_widthTotal
+            ;;
+        z) get_zeroPosition
+            ;;
+        \? ) do_usage 1>&2
+            ;;
+    esac
+done
+
+
+
