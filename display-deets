@@ -2,38 +2,74 @@
 # xrandr, xdotool, xwininfo
 # add more parameters as needed .. maybe displaynames and dims from xrandr
 
-
-do_verbose(){
-    echo "not yet implemented"
+get_summaryOfDisplays(){
+    # eDP-1 is laptop, DP-1 and DP-2 are HDMI displays
+    summaryOfDisplays=$(xrandr -q | grep -i " connected ")
+    echo "$summaryOfDisplays"
 }
+
+get_numberOfDisplays(){
+    #numberOfDisplays=$(xrandr -q | grep -i " connected " | wc -l)
+    numberOfDisplays=$(get_summaryOfDisplays | wc -l)
+    echo $numberOfDisplays
+}
+
 get_cursorBrief(){
 	cursorBrief=$(xdotool getmouselocation | sed 's|[a-z]||g' | sed 's|:||g')
     echo $cursorBrief
 }
-get_cursorVerbose(){
-	cursorVerbose=$(xdotool getmouselocation)
-    echo $cursorVerbose
-}
+
 get_mouseX(){
     cursorX=$(get_cursorBrief | cut -d ' ' -f 1)
 	#cursorX=$(get_cursorBrief | sed 's| .*||g') # remove everything after first space
 	#cursorX=$(get_cursorBrief | sed 's|\s.*$||') # remove everything after first space
     echo $cursorX 
 }
+
 get_mouseY(){
     cursorY=$(get_cursorBrief | cut -d ' ' -f 2)
     echo $cursorY
 }
+
+get_dimensionsAllDisplays(){
+    displays=$(get_summaryOfDisplays)
+    # convert to array, split on newline
+    SAVEIFS=$IFS; IFS=$'\n'
+    displays=($displays)
+    IFS=$SAVEIFS
+    # create an array to store dimensions (value) for each display (key)
+    # https://stackoverflow.com/questions/1494178/how-to-define-hash-tables-in-bash/3467959#3467959
+    declare -A dimensions # associative array
+
+    for d in "${displays[@]}"
+    do
+        d=$(echo "$d" | sed 's|primary ||g')
+        name=$(echo "${d}" | cut -d ' ' -f 1)
+        dims=$(echo "${d}" | cut -d ' ' -f 3)
+        xmin=$(echo $dims | cut -d '+' -f 2)
+        next=$(echo $dims | cut -d 'x' -f 1)
+        xmax=$(($xmin + $next))
+        echo "${name} ${dims} ${xmin} ${xmax}"
+        #dimensions+=" ${name} ${dims} ${xmin} \n"
+        dimensions["${name}"]="${dims}"
+    done
+    #echo "$dimensions"
+    echo keys: "${!dimensions[@]}"
+    echo vals: "${dimensions[@]}"
+}
+
+get_mouseDisplay(){
+    cursorX=$(get_mouseX)
+    echo $(get_dimensionsAllDisplays)
+
+}
+
 get_windowId(){
     windowId=$(get_cursorBrief | cut -d ' ' -f 4)
     echo $windowId
 }
-get_numberOfDisplays(){
-    numberOfDisplays=$(xrandr -q | grep -i " connected " | wc -l)
-    echo $numberOfDisplays
-}
-get_displayDetails(){
 
+get_displayDetails(){
     displayDetails=$(xrandr -q | grep -i " connected ")
     dLdims=$(get_displayDimensionsLeft)
     dRdims=$(get_displayDimensionsRight)
@@ -57,22 +93,24 @@ get_displayDetails(){
     echo "RIGHT: " $dR
     #echo "$displayDetails"
 }
+
 get_displayDimensions(){
     #dims=$(get_displayDetails | grep -o "[0-9]\+x[0-9]\+" | tr ' ' 'x')
     dims=$(get_displayDetails | grep -o "[0-9]\+x[0-9]\+")
     echo $dims
 }
+
 get_displayDimensionsLeft(){
     dL=$(xrandr | grep -w connected | sed -n '/[0-9]*+0+/p')
     dims=$(echo $dL | grep -o "[0-9]\+x[0-9]\+")
     echo $dims
 }
+
 get_displayDimensionsRight(){
     dR=$(xrandr | grep -w connected | sed -n '/x[0-9]*+[1-9][0-9]*+/p')
     dims=$(echo $dR | grep -o "[0-9]\+x[0-9]\+")
     echo $dims
 }
-
 
 get_widthTotal(){
     #echo $(get_displayDimensions)
@@ -82,6 +120,7 @@ get_widthTotal(){
     widthTotal=$(expr $d1Width + $d2Width)
     echo $widthTotal
 }
+
 get_zeroPosition(){
     mouseX=$(get_mouseX)
     mouseY=$(get_mouseY)
@@ -140,30 +179,32 @@ get_all(){
     echo
 }
 
-#echo $numDisplays
-#echo $cursorX
-#echo $cursorY
-
 do_usage(){
     me=$(basename "$0")
     echo
-    echo " $me [ -a | -x | -y | -m | -n | -l | -r | -i | -t | -d | -z ]"
+    echo " $me [ options ]"
     echo 
-    echo " -a   show all"
-    echo " -x   current x position of mouse cursor"
-    echo " -y   current y position of mouse cursor"
-    echo " -m   display details"
-    echo " -n   number of displays connected"
-    echo " -l   dimensions of left display"
-    echo " -r   dimensions of right display"
-    echo " -i   id of current window \(ie window under mouse cursor\)"
-    echo " -t   sum total width of all displays"
-    echo " -d   display dimensions NNNNxNNN NNNNxNNN ...."
-    echo " -z   zero position of display of current mouse position"
+    echo " -s   xrandr's summary of connected displays"
+    echo " -n   total number of connected displays"
+    echo " -x   x position of mouse cursor"
+    echo " -y   y position of mouse cursor"
+    echo " -m   show name of display, along with x min and max, where mouse cursor is located" 
+    echo " -d   get only dimensions for all displays" 
+    #echo " -a   show all"
+    #echo " -m   display details"
+    #echo " -l   dimensions of left display"
+    #echo " -r   dimensions of right display"
+    #echo " -i   id of current window \(ie window under mouse cursor\)"
+    #echo " -t   sum total width of all displays"
+    #echo " -d   display dimensions NNNNxNNN NNNNxNNN ...."
+    #echo " -z   zero position of display of current mouse position"
+    echo
+    echo Dependencies: xrandr, xdotool, xwininfo
     echo
     exit 1
 }
 
+# if no arguments are provided ...
 if [ $# -eq 0 ];
 then
     do_usage
@@ -171,32 +212,39 @@ then
 fi
 
 #while getopts ":axymnitdz" opt; do
-while getopts ":axymndlriwz" opt; do
+#while getopts ":axymndlriwz" opt; do
+while getopts ":snxymd" opt; do
     case ${opt} in
-        a) get_all
+        s) get_summaryOfDisplays
+            ;;
+        n) get_numberOfDisplays
             ;;
         x) get_mouseX
             ;;
         y) get_mouseY
             ;;
-        m) get_displayDetails
+        m) get_mouseDisplay 
             ;;
-        n) get_numberOfDisplays
+        d) get_dimensionsAllDisplays
             ;;
-        d) get_displayDimensions
-            ;;
-        l) get_displayDimensionsLeft
-            ;;
-        r) get_displayDimensionsRight
-            ;;
-        i) get_windowId 
-            ;;
-        w) get_widthTotal
-            ;;
-        z) get_zeroPosition
-            ;;
+#        a) get_all
+#            ;;
+#        m) get_displayDetails
+#            ;;
+#        d) get_displayDimensions
+#            ;;
+#        l) get_displayDimensionsLeft
+#            ;;
+#        r) get_displayDimensionsRight
+#            ;;
+#        i) get_windowId 
+#            ;;
+#        w) get_widthTotal
+#            ;;
+#        z) get_zeroPosition
+#            ;;
         \? ) do_usage 1>&2
-            ;;
+            ;; # show usage if options above aren't provided
     esac
 done
 
