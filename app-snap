@@ -1,0 +1,141 @@
+#!/bin/bash
+
+# "alias" for display-deets
+deets(){
+    display-deets "$@" # catch command options with $@
+}
+
+# get details on active window
+# pipe through xargs to remove leading/trailing whitespace
+window_ulx=$(deets -w | grep "Absolute upper-left X" | cut -d':' -f2 | xargs)
+window_uly=$(deets -w | grep "Absolute upper-left Y" | cut -d':' -f2 | xargs)
+echo "window_ulx $window_ulx"
+echo "window_uly $window_uly"
+window_szx=$(deets -w | grep "Width" | cut -d':' -f2 | xargs)
+window_szy=$(deets -w | grep "Height" | cut -d':' -f2 | xargs)
+echo "window_szx $window_szx"
+echo "window_szy $window_szy"
+window_ctx=$(( $window_ulx + ($window_szx / 2) ))
+window_cty=$(( $window_uly + ($window_szy / 2) ))
+echo "window_ctx $window_ctx"
+echo "window_cty $window_cty"
+
+# get display dimensions
+display_xdims=$(deets -x)
+display_ydims=$(deets -y)
+# convert to array, split on newline
+SAVEIFS=$IFS; IFS=$'\n'
+display_xdims=($display_xdims)
+display_ydims=($display_ydims)
+IFS=$SAVEIFS
+
+#echo ~~~ ${display_xdims[1]}
+
+# determine the display in which the CENTER of the active window falls
+
+i=0 # index to access display_ydims array
+
+for x in "${display_xdims[@]}" # loop over array
+do
+    x=($x) # convert to an array, split on spaces
+    display_xmin=${x[1]}; display_xmax=${x[2]}
+    y=(${display_ydims[$i]})
+    display_ymin=${y[1]}; display_ymax=${y[2]}
+    
+    if (( $window_ctx > $display_xmin && $window_ctx < $display_xmax ))
+    then
+        active_display_name=${x[0]}
+        break
+    fi
+    i=$(( $i+1 ))
+done
+
+# get display x and y dimensions
+echo active_display_name: $active_display_name
+echo xmin xmax: $display_xmin $display_xmax
+echo ymin ymax: $display_ymin $display_ymax
+
+# window snap options
+
+# max window height
+#window_ymax=$(($ymax-10))
+
+# left, right: snap but keep window same size
+# left12, right12: snap, resize window to 1/2 display size
+# center23, center34: snap to center, resize to 2/3 and 3/4 respectively
+    
+# active window dimensions
+#window_w=$(deets -w | grep Width | cut -d':' -f2 | xargs)
+#window_h=$(deets -w | grep Height | cut -d':' -f2 | xargs)
+
+# if window is taller than display ...
+# then set height to equal display y dimension
+check_window_szx(){
+    if (( $window_szy > $display_ymax )); then
+        window_szy=$display_ymax
+    fi
+}
+
+set_window_szx(){
+    scalar=$1
+    #if [[ $scale -eq 12 ]]; then
+    #    window_szx=$(( ($display_xmax - $display_xmin) * 1/2 ))
+    #fi
+    window_szx=$(( ($display_xmax - $display_xmin) * $scalar ))
+    echo $scale, $display_xmax, $window_szx
+}
+
+set_window_position(){
+    wmctrl -r :ACTIVE: -e 0,$new_position_x,$new_position_y,$window_szx,$window_szy
+}
+
+case "$1" in
+    "left")
+    echo snap: $1
+    check_window_szx
+    new_position_x=$display_xmin
+    new_position_y=$display_ymin
+    set_window_position
+    echo $window_szx, $window_szy
+    ;;
+    "right")
+    echo snap: $1
+    check_window_szx
+    new_position_x=$(($display_xmax - $window_szx))
+    new_position_y=$display_ymin
+    set_window_position
+    echo $window_szx, $window_szy
+    ;;
+    "left-1/2")
+    echo snap: $1
+    check_window_szx
+    set_window_szx $(echo $1 | cut -d'-' -f2) # get 1/2
+    new_position_x=$display_xmin
+    new_position_y=$display_ymin
+    set_window_position
+    echo $window_szx, $window_szy
+    ;;
+    "right12")
+    echo snap: right12
+    ;;
+    "center23")
+    echo snap: center23
+    ;;
+    "center34")
+    echo snap: center34
+    ;;
+    *)
+    echo $1 is not an valid snap option
+    exit 1
+esac
+
+
+
+
+
+
+
+
+
+
+
