@@ -1,4 +1,5 @@
 #!/bin/bash
+# dependencies: display-deets, wmctrl
 
 # "alias" for display-deets
 deets(){
@@ -29,12 +30,8 @@ display_xdims=($display_xdims)
 display_ydims=($display_ydims)
 IFS=$SAVEIFS
 
-#echo ~~~ ${display_xdims[1]}
-
-# determine the display in which the CENTER of the active window falls
-
-i=0 # index to access display_ydims array
-
+# determine display in which the CENTER of the active window falls
+i=0 # index to access elements in display_ydims array
 for x in "${display_xdims[@]}" # loop over array
 do
     x=($x) # convert to an array, split on spaces
@@ -50,85 +47,72 @@ do
     i=$(( $i+1 ))
 done
 
-# get display x and y dimensions
-echo active_display_name: $active_display_name
-echo xmin xmax: $display_xmin $display_xmax
-echo ymin ymax: $display_ymin $display_ymax
-
 # window snap options
 
-# max window height
-#window_ymax=$(($ymax-10))
+# snap right side, but keep same window size:
+#       app-snap right 
 
-# left, right: snap but keep window same size
-# left12, right12: snap, resize window to 1/2 display size
-# center23, center34: snap to center, resize to 2/3 and 3/4 respectively
-    
-# active window dimensions
-#window_w=$(deets -w | grep Width | cut -d':' -f2 | xargs)
-#window_h=$(deets -w | grep Height | cut -d':' -f2 | xargs)
+# snap left side, resize to 1/2 display width, full height
+#       app-snap left 1/2 
+
+# snap center, resize to 2/3 display width, full height
+#       app-snap center 2/3 
+
+display_ymax=$(( $display_ymax - 40 )) # leave space below windows
 
 # if window is taller than display ...
 # then set height to equal display y dimension
-check_window_szx(){
+check_window_szy(){
     if (( $window_szy > $display_ymax )); then
         window_szy=$display_ymax
     fi
 }
 
-set_window_szx(){
-    scalar=$1
-    #if [[ $scale -eq 12 ]]; then
-    #    window_szx=$(( ($display_xmax - $display_xmin) * 1/2 ))
-    #fi
-    window_szx=$(( ($display_xmax - $display_xmin) * $scalar ))
-    echo $scale, $display_xmax, $window_szx
+# set size based on scalar that is provided as second arg
+# i.e. 1/2, 2/3, etc
+set_window_size(){
+    scalar=$2
+    echo scalar: $2
+    if [[ $scalar ]]; then
+        window_szx=$(( ($display_xmax - $display_xmin) * $scalar ))
+        window_szy=$display_ymax
+    fi
+    echo set_window_size: $scalar $window_szx
 }
 
+# set position using args sent from case statement
 set_window_position(){
+    check_window_szy
+    new_position_x=$1; new_position_y=$2
     wmctrl -r :ACTIVE: -e 0,$new_position_x,$new_position_y,$window_szx,$window_szy
+    echo wmctrl -r :ACTIVE: -e 0,$new_position_x,$new_position_y,$window_szx,$window_szy
 }
 
+# manage arguments
 case "$1" in
-    "left")
+    "left"*)
     echo snap: $1
-    check_window_szx
-    new_position_x=$display_xmin
-    new_position_y=$display_ymin
-    set_window_position
-    echo $window_szx, $window_szy
+    set_window_size $1 $2
+    set_window_position $display_xmin $display_ymin
     ;;
-    "right")
+    *"right"*)
     echo snap: $1
-    check_window_szx
-    new_position_x=$(($display_xmax - $window_szx))
-    new_position_y=$display_ymin
-    set_window_position
-    echo $window_szx, $window_szy
+    set_window_size $1 $2
+    set_window_position $(($display_xmax - $window_szx)) $display_ymin
     ;;
-    "left-1/2")
-    echo snap: $1
-    check_window_szx
-    set_window_szx $(echo $1 | cut -d'-' -f2) # get 1/2
-    new_position_x=$display_xmin
-    new_position_y=$display_ymin
-    set_window_position
-    echo $window_szx, $window_szy
-    ;;
-    "right12")
-    echo snap: right12
-    ;;
-    "center23")
-    echo snap: center23
-    ;;
-    "center34")
-    echo snap: center34
+    *"center"*)
+    echo snap: $1 
+    set_window_size $1 $2
+    new_position_x=$(( (($display_xmax - $display_xmin) / 2) + $display_xmin )) # get center position
+    new_position_x=$(( $new_position_x - ($window_szx / 2) )) # shift left by 1/2 window width
+    set_window_position $new_position_x $display_ymin
     ;;
     *)
     echo $1 is not an valid snap option
     exit 1
 esac
 
+echo $window_szx, $window_szy
 
 
 
