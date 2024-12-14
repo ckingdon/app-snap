@@ -16,7 +16,7 @@ For example:
     # ... maps to ...
     app-snap center 2/3
 
-`display-deets` is the script that retrieves details needed by `app-snap`. `display-deets` gets details about all the connected displays.
+`display-deets` gets details about all the connected displays; these are used by `app-snap` to position the active app window in the respective display.
 
 I have plans to add a chord for moving the active window to different displays.
 
