@@ -47,18 +47,7 @@ do
     i=$(( $i+1 ))
 done
 
-# window snap options
-
-# snap right side, but keep same window size:
-#       app-snap right 
-
-# snap left side, resize to 1/2 display width, full height
-#       app-snap left 1/2 
-
-# snap center, resize to 2/3 display width, full height
-#       app-snap center 2/3 
-
-display_ymax=$(( $display_ymax - 40 )) # leave space below windows
+display_ymax=$(( $display_ymax - 40 )) # leave a little space below windows
 
 # if window is taller than display ...
 # then set height to equal display y dimension
@@ -69,7 +58,10 @@ check_window_szy(){
 }
 
 # set size based on scalar that is provided as second arg
-# i.e. 1/2, 2/3, etc
+# e.g. 1/2, 2/3, 1/1 (full)
+# TODO: 
+#    modify to accept both x and y scalars
+#    clarify use of $1 and $2 .. assign obvious variable names
 set_window_size(){
     scalar=$2
     echo scalar: $2
@@ -107,19 +99,20 @@ case "$1" in
     new_position_x=$(( $new_position_x - ($window_szx / 2) )) # shift left by 1/2 window width
     set_window_position $new_position_x $display_ymin
     ;;
+    *"fullwidth"*)
+    echo snap: $1 
+    set_window_size $1 $2
+    #new_position_x=$(( $display_xmin) )) # screen origin
+    #new_position_x=$(( $new_position_x - ($window_szx / 2) )) # shift left by 1/2 window width
+    #set_window_position $new_position_x $display_ymin
+    set_window_position $display_xmin $(( $display_ymin + 200 ))
+    ;;
     *)
     echo $1 is not an valid snap option
     exit 1
 esac
 
 echo $window_szx, $window_szy
-
-
-
-
-
-
-
 
 
 

@@ -113,7 +113,7 @@ show_usage(){
     #echo " -t   sum total width of all displays"
     #echo " -z   zero / origin position of display of current mouse position"
     echo
-    echo Dependencies: xrandr, xdotool, xwininfo, Bash >= v4
+    echo "Dependencies: xrandr, xdotool, xwininfo, Bash >= v4"
     echo
     exit 1
 }
