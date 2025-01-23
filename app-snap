@@ -102,9 +102,6 @@ case "$1" in
     *"fullwidth"*)
     echo snap: $1 
     set_window_size $1 $2
-    #new_position_x=$(( $display_xmin) )) # screen origin
-    #new_position_x=$(( $new_position_x - ($window_szx / 2) )) # shift left by 1/2 window width
-    #set_window_position $new_position_x $display_ymin
     set_window_position $display_xmin $(( $display_ymin + 200 ))
     ;;
     *)
