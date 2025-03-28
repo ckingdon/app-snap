@@ -1,7 +1,7 @@
 #!/bin/bash
 # dependencies: display-deets, wmctrl
 
-# "alias" for display-deets
+# internal alias for display-deets
 deets(){
     display-deets "$@" # catch command options with $@
 }
@@ -23,8 +23,7 @@ get_active_window_details() {
 	echo "window_cty $window_cty"
 }
 
-# get display dimensions
-# convert to array, split on newline
+# get display dimensions, convert to array, split on newline
 get_display_dimensions() {
 	display_xdims=$(deets -x)
 	display_ydims=$(deets -y)
@@ -36,16 +35,16 @@ get_display_dimensions() {
 
 # determine display in which the CENTER of the active window falls
 get_current_display() {
-	i=0 # index to access elements in display_ydims array
-	for x in "${display_xdims[@]}" # loop over array
+	# index to access elements in display_ydims array
+	i=0
+    # loop over array
+	for x in "${display_xdims[@]}"
 	do
-	    x=($x) # convert to an array, split on spaces
+	    x=($x) # convert to array, split on spaces
 	    display_xmin=${x[1]}; display_xmax=${x[2]}
 	    y=(${display_ydims[$i]})
 	    display_ymin=${y[1]}; display_ymax=${y[2]}
         
-        #echo get_current_display: $display_xmin, $display_xmax, $window_ctx
-	    
 	    if (( $window_ctx > $display_xmin && $window_ctx < $display_xmax ))
 	    then
 	        active_display_name=${x[0]}
@@ -57,9 +56,7 @@ get_current_display() {
     display_ymax=$(( $display_ymax - 40 )) 
 }
 
-
-# if window is taller than display ...
-# then set height to equal display y dimension
+# if window is taller than display then set height to equal y dimension
 check_window_szy(){
     if (( $window_szy > $display_ymax )); then
         window_szy=$display_ymax
@@ -72,11 +69,9 @@ check_for_big_display() {
     fi
 }
 
-# set size based on scalar that is provided as second arg
-# e.g. 1/2, 2/3, 1/1 (full)
+# set size based on scalar that is provided as second arg e.g. 1/2, 2/3, 1/1 (full)
 set_window_size(){
-    # TODO: 
-    #    modify to accept both x and y scalars
+    # TODO: modify to accept y scalars too
     check_for_big_display
     scalar=$2
     echo scalar: $2
@@ -96,8 +91,10 @@ set_window_size(){
 }
 
 get_center_position() {
-    new_position_x=$(( (( $display_xmax - $display_xmin ) / 2 ) + $display_xmin )) # get center position
-    new_position_x=$(( $new_position_x - ( $window_szx / 2 ) )) # shift left by 1/2 window width
+    # get center position
+    new_position_x=$(( (( $display_xmax - $display_xmin ) / 2 ) + $display_xmin )) 
+    # shift left by 1/2 window width
+    new_position_x=$(( $new_position_x - ( $window_szx / 2 ) )) 
 }
 
 # set position using args sent from case statement
@@ -114,8 +111,7 @@ get_display_dimensions
 get_current_display
 check_for_big_display
 
-# manage arguments
-case "$1" in
+case "$1" in # handle arguments
     *"left"*)
     echo snap: $1
     set_window_size $1 $2
@@ -139,8 +135,6 @@ case "$1" in
     echo $1 is not an valid snap option
     exit 1
 esac
-
-#echo $window_szx, $window_szy
 
 set_window_position $display_xmin $display_ymin
 
