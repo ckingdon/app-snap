@@ -8,7 +8,7 @@ get_displays_summary(){
 }
 
 get_displays_dimensions(){
-    displays$(get_displays_summary)
+    displays=$(get_displays_summary)
     # convert to array, split on newline
     SAVEIFS=$IFS; IFS=$'\n'
     displays=($displays)

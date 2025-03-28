@@ -6,48 +6,57 @@ deets(){
     display-deets "$@" # catch command options with $@
 }
 
-# get details on active window
-# pipe through xargs to remove leading/trailing whitespace
-window_ulx=$(deets -w | grep "Absolute upper-left X" | cut -d':' -f2 | xargs)
-window_uly=$(deets -w | grep "Absolute upper-left Y" | cut -d':' -f2 | xargs)
-echo "window_ulx $window_ulx"
-echo "window_uly $window_uly"
-window_szx=$(deets -w | grep "Width" | cut -d':' -f2 | xargs)
-window_szy=$(deets -w | grep "Height" | cut -d':' -f2 | xargs)
-echo "window_szx $window_szx"
-echo "window_szy $window_szy"
-window_ctx=$(( $window_ulx + ($window_szx / 2) ))
-window_cty=$(( $window_uly + ($window_szy / 2) ))
-echo "window_ctx $window_ctx"
-echo "window_cty $window_cty"
+get_active_window_details() {
+	# get details on active window
+	# pipe through xargs to remove leading/trailing whitespace
+	window_ulx=$(deets -w | grep "Absolute upper-left X" | cut -d':' -f2 | xargs)
+	window_uly=$(deets -w | grep "Absolute upper-left Y" | cut -d':' -f2 | xargs)
+	echo "window_ulx $window_ulx"
+	echo "window_uly $window_uly"
+	window_szx=$(deets -w | grep "Width" | cut -d':' -f2 | xargs)
+	window_szy=$(deets -w | grep "Height" | cut -d':' -f2 | xargs)
+	echo "window_szx $window_szx"
+	echo "window_szy $window_szy"
+	window_ctx=$(( $window_ulx + ($window_szx / 2) ))
+	window_cty=$(( $window_uly + ($window_szy / 2) ))
+	echo "window_ctx $window_ctx"
+	echo "window_cty $window_cty"
+}
 
 # get display dimensions
-display_xdims=$(deets -x)
-display_ydims=$(deets -y)
 # convert to array, split on newline
-SAVEIFS=$IFS; IFS=$'\n'
-display_xdims=($display_xdims)
-display_ydims=($display_ydims)
-IFS=$SAVEIFS
+get_display_dimensions() {
+	display_xdims=$(deets -x)
+	display_ydims=$(deets -y)
+	SAVEIFS=$IFS; IFS=$'\n'
+	display_xdims=($display_xdims)
+	display_ydims=($display_ydims)
+	IFS=$SAVEIFS
+}
 
 # determine display in which the CENTER of the active window falls
-i=0 # index to access elements in display_ydims array
-for x in "${display_xdims[@]}" # loop over array
-do
-    x=($x) # convert to an array, split on spaces
-    display_xmin=${x[1]}; display_xmax=${x[2]}
-    y=(${display_ydims[$i]})
-    display_ymin=${y[1]}; display_ymax=${y[2]}
-    
-    if (( $window_ctx > $display_xmin && $window_ctx < $display_xmax ))
-    then
-        active_display_name=${x[0]}
-        break
-    fi
-    i=$(( $i+1 ))
-done
+get_current_display() {
+	i=0 # index to access elements in display_ydims array
+	for x in "${display_xdims[@]}" # loop over array
+	do
+	    x=($x) # convert to an array, split on spaces
+	    display_xmin=${x[1]}; display_xmax=${x[2]}
+	    y=(${display_ydims[$i]})
+	    display_ymin=${y[1]}; display_ymax=${y[2]}
+        
+        #echo get_current_display: $display_xmin, $display_xmax, $window_ctx
+	    
+	    if (( $window_ctx > $display_xmin && $window_ctx < $display_xmax ))
+	    then
+	        active_display_name=${x[0]}
+	        break
+	    fi
+	    i=$(( $i+1 ))
+	done
+    # leave a little space below windows
+    display_ymax=$(( $display_ymax - 40 )) 
+}
 
-display_ymax=$(( $display_ymax - 40 )) # leave a little space below windows
 
 # if window is taller than display ...
 # then set height to equal display y dimension
@@ -57,19 +66,38 @@ check_window_szy(){
     fi
 }
 
+check_for_big_display() {
+    if [[ $(( $display_xmax - $display_xmin )) > 2000 ]]; then
+        big_display=true
+    fi
+}
+
 # set size based on scalar that is provided as second arg
 # e.g. 1/2, 2/3, 1/1 (full)
-# TODO: 
-#    modify to accept both x and y scalars
-#    clarify use of $1 and $2 .. assign obvious variable names
 set_window_size(){
+    # TODO: 
+    #    modify to accept both x and y scalars
+    check_for_big_display
     scalar=$2
     echo scalar: $2
     if [[ $scalar ]]; then
+        echo SCALAR
         window_szx=$(( ($display_xmax - $display_xmin) * $scalar ))
         window_szy=$display_ymax
-    fi
+    fi 
+
+    if [[ "$big_display" == true && $scalar ]]; then
+        echo BIG display
+        window_szx=$(( $window_szx * 8/10 )) # 80% of specified scalar
+        window_szy=$display_ymax
+    fi 
     echo set_window_size: $scalar $window_szx
+    get_center_position
+}
+
+get_center_position() {
+    new_position_x=$(( (( $display_xmax - $display_xmin ) / 2 ) + $display_xmin )) # get center position
+    new_position_x=$(( $new_position_x - ( $window_szx / 2 ) )) # shift left by 1/2 window width
 }
 
 # set position using args sent from case statement
@@ -80,36 +108,40 @@ set_window_position(){
     echo wmctrl -r :ACTIVE: -e 0,$new_position_x,$new_position_y,$window_szx,$window_szy
 }
 
+# MAIN
+get_active_window_details
+get_display_dimensions
+get_current_display
+check_for_big_display
+
 # manage arguments
 case "$1" in
-    "left"*)
+    *"left"*)
     echo snap: $1
     set_window_size $1 $2
-    set_window_position $display_xmin $display_ymin
     ;;
     *"right"*)
     echo snap: $1
     set_window_size $1 $2
-    set_window_position $(($display_xmax - $window_szx)) $display_ymin
+    display_xmin=$(($display_xmax - $window_szx))
     ;;
     *"center"*)
     echo snap: $1 
     set_window_size $1 $2
-    new_position_x=$(( (($display_xmax - $display_xmin) / 2) + $display_xmin )) # get center position
-    new_position_x=$(( $new_position_x - ($window_szx / 2) )) # shift left by 1/2 window width
-    set_window_position $new_position_x $display_ymin
+    display_xmin=$new_position_x
     ;;
     *"fullwidth"*)
     echo snap: $1 
     set_window_size $1 $2
-    set_window_position $display_xmin $(( $display_ymin + 200 ))
+    display_xmin=$new_position_x
     ;;
     *)
     echo $1 is not an valid snap option
     exit 1
 esac
 
-echo $window_szx, $window_szy
+#echo $window_szx, $window_szy
 
+set_window_position $display_xmin $display_ymin
 
 
